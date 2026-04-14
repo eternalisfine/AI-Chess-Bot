@@ -1,0 +1,4 @@
+build/
+.vscode/
+*.o
+test_step1

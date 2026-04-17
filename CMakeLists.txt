@@ -11,4 +11,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(chess_game 
     test_step1.cpp 
     Board.cpp
+    MoveValidator.cpp
+    test_step2.cpp
 )

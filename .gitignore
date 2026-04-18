@@ -1,4 +1,27 @@
+# Build directory
 build/
-.vscode/
+
+# Compiled binaries
+main
+test_1
+test_2
+test_3
+*.exe
+*.out
 *.o
-test_step1
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+
+# IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store        # Mac
+Thumbs.db        # Windows

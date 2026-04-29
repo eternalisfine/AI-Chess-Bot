@@ -54,7 +54,7 @@ std::string boardToJSON() {
 }
 
 void updateGameStatus() {
-    if (validator.isCheckmate(board, currentTurn))
+    if (validator.isCheckmate(board, currentTurn))          //.         .       Abstraction
         gameStatus = "checkmate";
     else if (validator.isStalemate(board, currentTurn))
         gameStatus = "stalemate";

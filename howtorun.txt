@@ -1,0 +1,9 @@
+# Kill any process on port 5000
+fuser -k 5000/tcp
+
+# Recompile one last time to be sure
+g++ -O3 Board.cpp MoveValidator.cpp OllamaClient.cpp chess_engine.cpp -o chess_engine -lcurl
+chmod +x chess_engine
+
+# Start the server
+python server.py

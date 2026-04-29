@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engine.cpp | Minimalist Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #050505;
+            --bg-surface: #121212;
+            --bg-panel: #1a1a1a;
+            --border-dim: #333;
+            --accent-red: #ff2a55;
+            --text-main: #e0e0e0;
+            --text-dim: #888;
+            
+            --sq-light: #2c2c2c;
+            --sq-dark: #1e1e1e;
+            --sq-highlight: rgba(255, 42, 85, 0.4);
+            --sq-legal: rgba(42, 255, 136, 0.3);
+            
+            --piece-white: #f5f5f5;
+            --piece-black: #0a0a0a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Dashboard Layout */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 250px 600px 300px;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--bg-panel);
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border-dim);
+            color: var(--accent-red);
+        }
+
+        /* Left Wing: Move Ledger */
+        .ledger-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 0.9rem;
+        }
+
+        .move-row {
+            display: grid;
+            grid-template-columns: 40px 1fr 1fr;
+            padding: 6px;
+            border-bottom: 1px solid #222;
+        }
+        
+        .move-row span:first-child { color: var(--text-dim); }
+
+        /* Center: The Arena */
+        .arena {
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 70px);
+            grid-template-rows: repeat(8, 70px);
+            border: 2px solid var(--border-dim);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .square {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 45px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background 0.1s;
+        }
+
+        .sq-light { background-color: var(--sq-light); }
+        .sq-dark { background-color: var(--sq-dark); }
+        
+        .square.selected { background-color: var(--sq-highlight) !important; }
+        .square.legal::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: var(--sq-legal);
+            border-radius: 50%;
+        }
+
+        /* Pro Trick: Use filled pieces for both, change color via CSS */
+        .piece-w { color: var(--piece-white); text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .piece-b { color: var(--piece-black); text-shadow: 0 1px 1px rgba(255,255,255,0.2); }
+
+        /* Right Wing: Control Center */
+        .controls-content { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .control-group label { font-size: 0.8rem; color: var(--text-dim); }
+        
+        select, input, button {
+            background: var(--bg-panel);
+            color: var(--text-main);
+            border: 1px solid var(--border-dim);
+            padding: 10px;
+            font-family: inherit;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        button {
+            background: var(--bg-panel);
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .terminal {
+            background: #000;
+            color: #0f0;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            min-height: 100px;
+            overflow-wrap: break-word;
+            border: 1px solid #222;
+        }
+
+        .bot-thinking { color: #aa0; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        /* Toast Notification */
+        #toast {
+            position: fixed; top: 20px; right: 20px;
+            background: var(--accent-red); color: white;
+            padding: 12px 24px; border-radius: 4px;
+            font-weight: bold; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast">Message</div>
+
+    <div class="dashboard">
+        <div class="panel">
+            <div class="panel-header">Execution Log</div>
+            <div class="ledger-content" id="move-log">
+                </div>
+        </div>
+
+        <div class="arena">
+            <div id="board"></div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">Engine Control</div>
+            <div class="controls-content">
+                <div class="control-group">
+                    <label>LLM Model</label>
+                    <input type="text" id="model-input" value="llama3.2:1b" placeholder="e.g. qwen2.5:1b">
+                </div>
+                
+                <div class="control-group">
+                    <label>Status</label>
+                    <div id="game-status" style="font-weight: bold; color: var(--text-main);">White to Move</div>
+                </div>
+
+                <div class="control-group">
+                    <label>System Output</label>
+                    <div class="terminal" id="terminal">sys.ready...</div>
+                </div>
+
+                <button id="btn-new" onclick="newGame()">[ Initialize New Game ]</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const piecesMap = {
+            'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
+            'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟'
+        };
+
+        let boardState = [];
+        let selectedSquare = null;
+        let legalMovesMap = {}; // Maps "e2" to ["e3", "e4"]
+        let currentTurn = 'white';
+        let moveHistory = [];
+        let isBotThinking = false;
+
+        const boardEl = document.getElementById('board');
+        const logEl = document.getElementById('move-log');
+        const termEl = document.getElementById('terminal');
+        const statusEl = document.getElementById('game-status');
+        const toastEl = document.getElementById('toast');
+
+        function showToast(msg) {
+            toastEl.textContent = msg;
+            toastEl.style.opacity = 1;
+            setTimeout(() => toastEl.style.opacity = 0, 3000);
+        }
+
+        function logTerminal(msg) {
+            termEl.innerHTML = msg;
+        }
+
+        function posToAlg(r, c) {
+            return String.fromCharCode(97 + c) + (8 - r);
+        }
+
+        async function fetchAPI(endpoint, data = null) {
+            const options = { method: data ? 'POST' : 'GET' };
+            if (data) {
+                options.headers = { 'Content-Type': 'application/json' };
+                options.body = JSON.stringify(data);
+            }
+            const res = await fetch(endpoint, options);
+            return res.json();
+        }
+
+        async function initBoard() {
+            boardEl.innerHTML = '';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const sq = document.createElement('div');
+                    const isLight = (r + c) % 2 === 0;
+                    sq.className = `square ${isLight ? 'sq-light' : 'sq-dark'}`;
+                    sq.dataset.r = r;
+                    sq.dataset.c = c;
+                    sq.dataset.alg = posToAlg(r, c);
+                    sq.addEventListener('click', () => handleSquareClick(r, c, sq.dataset.alg.toLowerCase()));
+                    boardEl.appendChild(sq);
+                }
+            }
+        }
+
+        function renderPieces(data) {
+            boardState = data.board;
+            currentTurn = data.turn;
+            statusEl.textContent = data.status === 'playing' ? `${currentTurn.toUpperCase()} TO MOVE` : `GAME OVER: ${data.status.toUpperCase()}`;
+            
+            const squares = boardEl.children;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const idx = r * 8 + c;
+                    const sq = squares[idx];
+                    const pieceData = boardState[r][c];
+                    
+                    sq.innerHTML = '';
+                    sq.classList.remove('selected', 'legal');
+                    
+                    if (pieceData) {
+                        const span = document.createElement('span');
+                        span.textContent = piecesMap[pieceData.symbol];
+                        span.className = pieceData.color === 'white' ? 'piece-w' : 'piece-b';
+                        sq.appendChild(span);
+                    }
+                }
+            }
+        }
+
+        function renderLog() {
+            logEl.innerHTML = moveHistory.map((m, i) => `
+                <div class="move-row">
+                    <span>${i + 1}.</span>
+                    <span>${m.white || '...'}</span>
+                    <span>${m.black || ''}</span>
+                </div>
+            `).join('');
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function handleSquareClick(r, c, alg) {
+            if (isBotThinking || currentTurn !== 'white') return;
+
+            const piece = boardState[r][c];
+
+            // If a square is already selected, check if we are clicking a legal destination
+            if (selectedSquare) {
+                if (legalMovesMap[selectedSquare].includes(alg)) {
+                    // Execute move
+                    const moveStr = selectedSquare + alg;
+                    await makeMove(moveStr);
+                    return;
+                }
+            }
+
+            // Select new piece
+            if (piece && piece.color === 'white') {
+                selectedSquare = alg;
+                const result = await fetchAPI(`/api/legal/${alg}`);
+                
+                // Clear old highlights
+                Array.from(boardEl.children).forEach(sq => sq.classList.remove('selected', 'legal'));
+                
+                // Highlight selected
+                boardEl.children[r * 8 + c].classList.add('selected');
+
+                // Extract destinations from engine format (e.g. "e2e4" -> "e4")
+                const moves = result.legalMoves || [];
+                legalMovesMap[alg] = moves.map(m => m.substring(2, 4));
+
+                // Highlight legal squares
+                legalMovesMap[alg].forEach(destAlg => {
+                    const destSq = Array.from(boardEl.children).find(s => s.dataset.alg === destAlg);
+                    if (destSq) destSq.classList.add('legal');
+                });
+            } else {
+                // Deselect
+                selectedSquare = null;
+                Array.from(boardEl.children).forEach(sq => sq.classList.remove('selected', 'legal'));
+            }
+        }
+
+        async function makeMove(moveStr) {
+            selectedSquare = null;
+            moveHistory.push({ white: moveStr, black: null });
+            renderLog();
+            
+            const data = await fetchAPI('/api/move', { move: moveStr });
+            renderPieces(data);
+
+            if (data.status === 'playing') {
+                triggerBotMove();
+            }
+        }
+
+        async function triggerBotMove() {
+            isBotThinking = true;
+            document.getElementById('btn-new').disabled = true;
+            logTerminal('<span class="bot-thinking">>> LLM is analyzing FEN string...</span>');
+            
+            const modelName = document.getElementById('model-input').value;
+            
+            try {
+                const data = await fetchAPI('/api/botmove', { model: modelName });
+                if (data.botMove) {
+                    moveHistory[moveHistory.length - 1].black = data.botMove;
+                    logTerminal(`>> Bot executed: ${data.botMove}`);
+                }
+                renderPieces(data);
+                renderLog();
+            } catch (e) {
+                logTerminal(`>> ERROR: Engine disconnected or timed out.`);
+            } finally {
+                isBotThinking = false;
+                document.getElementById('btn-new').disabled = false;
+            }
+        }
+
+        async function newGame() {
+            moveHistory = [];
+            selectedSquare = null;
+            logTerminal('>> sys.reset()\n>> awaiting player input...');
+            const data = await fetchAPI('/api/init', null);
+            renderPieces(data);
+            renderLog();
+            showToast("Engine Initialized");
+        }
+
+        // Boot
+        initBoard();
+        newGame();
+
+    </script>
+</body>
+</html>

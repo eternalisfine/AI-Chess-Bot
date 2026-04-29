@@ -51,3 +51,13 @@ add_executable(main
 # Link curl — works on Arch, Ubuntu, Mac, Windows
 target_include_directories(main PRIVATE ${CURL_INCLUDE_DIRS})
 target_link_libraries(main PRIVATE CURL::libcurl ${EXTRA_LIBS})
+
+# Web server engine binary
+add_executable(chess_engine
+    Board.cpp
+    MoveValidator.cpp
+    OllamaClient.cpp
+    chess_engine.cpp
+)
+target_include_directories(chess_engine PRIVATE ${CURL_INCLUDE_DIRS})
+target_link_libraries(chess_engine PRIVATE CURL::libcurl ${EXTRA_LIBS})
